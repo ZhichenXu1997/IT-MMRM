@@ -1,0 +1,173 @@
+tree_lmer <- c()
+tree_mmrm_2 <- c()
+tree_mmrm_3 <- c()
+tree_mmrm_logn <- c()
+tree_mmrm_4 <- c()
+tree_mmrm_test_2 <- c()
+tree_mmrm_test_3 <- c()
+tree_mmrm_test_logn <- c()
+tree_mmrm_test_4 <- c()
+for (ii in 1:100) {
+  set.seed(ii+120)
+  N <- 300
+  X1 <- rbinom(N, 1, 0.5)
+  X2 <- rbinom(N, 1, 0.5)
+  X3 <- rbinom(N, 1, 0.5)
+  X4 <- runif(N, 0, 1)
+  X5 <- runif(N, 0, 1)
+  trt <- 1*(runif(N)<0.5)
+
+  corr <- diag(4)
+  #corr <- mat.ar2(0.5,5)
+  #corr <- mat.ar1(0.9,4)
+
+  group1 <- (X1 == 1) & (X4 <= 2/3)
+  group2 <- (X1 == 0) & (X4 <= 2/3)
+  group3 <- X4 > 2/3
+
+  Group1 <- as.numeric(group1)*1
+  Group2 <- as.numeric(group2)*2
+  Group3 <- as.numeric(group3)*3
+
+  Group_true <- Group1 + Group2 + Group3
+
+  mu <- c(0.2,0.6,1.2,3)
+
+  e1 <- rep(0,N)
+  e2 <- rep(0,N)
+  e3 <- rep(0,N)
+  e4 <- rep(0,N)
+
+  for (i in 1:N) {
+    if (group1[i]){
+      mu_cur <- mu + trt[i] * c(-0.3,-0.5,-0.1,0)
+      data_cur <- mvrnorm(1, mu=mu_cur, Sigma=corr)
+      e1[i] <- data_cur[1]
+      e2[i] <- data_cur[2]
+      e3[i] <- data_cur[3]
+      e4[i] <- data_cur[4]
+    }
+    if (group2[i]){
+      mu_cur <- mu
+      data_cur <- mvrnorm(1, mu=mu_cur, Sigma=corr)
+      e1[i] <- data_cur[1]
+      e2[i] <- data_cur[2]
+      e3[i] <- data_cur[3]
+      e4[i] <- data_cur[4]
+    }
+    if (group3[i]){
+      mu_cur <- mu + trt[i] * c(0.3,0.5,0.1,0)
+      data_cur <- mvrnorm(1, mu=mu_cur, Sigma=corr)
+      e1[i] <- data_cur[1]
+      e2[i] <- data_cur[2]
+      e3[i] <- data_cur[3]
+      e4[i] <- data_cur[4]
+    }
+  }
+
+  r1 <- 1*(runif(N) < 0.9)
+  r2 <- 1*(runif(N) < 0.9)
+  r3 <- 1*(runif(N) < 0.9)
+  r4 <- 1*(runif(N) < 0.9)
+
+  e1[r1==0] <- NA
+  e2[r2==0] <- NA
+  e3[r3==0] <- NA
+  e4[r4==0] <- NA
+
+  wideData <- data.frame(id=1:N, trt=trt, y0=y0, e1=e1, e2=e2, e3=e3,e4=e4, X1=as.factor(X1), X2=as.factor(X2), X3=as.factor(X3), X4=X4, X5=X5)
+
+  longData <- reshape(wideData, varying=c("e1", "e2", "e3","e4"),
+                      direction="long", sep="", idvar="id")
+  longData <- longData[order(longData$trt,longData$id,longData$time),]
+
+  data.lmetree <-
+    lmertree(
+      e ~ trt*factor(time)|(1 | id)|X1+X2+X3+X4+X5,
+      data = na.omit(longData),
+      maxdepth = 3,
+      alpha = .01,
+    )$tree
+
+  #plot(data.lmetree)
+  tree_lmer[ii] <- data.lmetree
+
+  wideData <- data.frame(id=1:N, trt=trt, y0=y0, e1=e1, e2=e2, e3=e3, X1=as.factor(X1), X2=as.factor(X2), X3=as.factor(X3), X4=X4, X5=X5)
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Regular",lambda = 2)
+  tree_mmrm_2[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Regular",lambda = 3)
+  tree_mmrm_3[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Regular",lambda = log(300))
+  tree_mmrm_logn[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Regular",lambda = 4)
+  tree_mmrm_4[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Testset",lambda = 2)
+  tree_mmrm_test_2[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Testset",lambda = 3)
+  tree_mmrm_test_3[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Testset",lambda = log(300))
+  tree_mmrm_test_logn[[ii]] <- tr
+  tr <- MMRM_tree(wideData,e~factor(Z)*factor(trt)*factor(time)+us(time|id),c("X1","X2","X3","X4","X5"),Prunemethod = "Testset",lambda = 4)
+  tree_mmrm_test_4[[ii]] <- tr
+
+  print(ii)
+}
+
+# plot setting
+
+time <- c(0,1,2,3,4)
+y_mean_control <- c(20,20,20,20,20)+c(0,0.2,0.6,1.2,3)
+y_mean_treament <- c(20,20,20,20,20)+c(0,0.2,0.6,1.2,3)
+plot(time,y_mean_control,lwd = 2,pch=20,lty = 6,ylab = "y_mean",main = "Overall",cex =2,type = "b")
+lines(time,y_mean_treament,lwd = 2,pch=2,lty = 1,type = "b",cex =2)
+legend("bottomright",legend = c("control","treatment"),lwd = c(2,2),pch = c(20,2),lty = c(6,1),cex = c(1.5,1.5))
+
+y_mean_1 <- y_mean_control + c(0,-0.3,-0.5,-0.1,0)
+y_mean_2 <- y_mean_control
+y_mean_3 <- y_mean_control + c(0,0.3,0.5,0.1,0)
+par(mfrow = c(1,3))
+plot(time,y_mean_control,type = "b",lwd = 2,pch=20,lty = 6,cex = 2,ylab = "y_mean",main = "Subgroup 1",ylim = c(19,24))
+lines(time,y_mean_1,type = "b",lwd = 2,pch=2,lty = 1,cex = 2)
+legend("bottomleft",legend = c("control","treatment"),lwd = c(2,2),pch = c(20,2),lty = c(6,1),cex = c(1.5,1.5))
+plot(time,y_mean_control,type = "b",lwd = 2,pch=20,lty = 6,cex = 2,ylab = "y_mean",main = "Subgroup 2",ylim = c(19,24))
+lines(time,y_mean_2,type = "b",lwd = 2,pch=2,lty = 1,cex = 2)
+legend("bottomleft",legend = c("control","treatment"),lwd = c(2,2),pch = c(20,2),lty = c(6,1),cex = c(1.5,1.5))
+plot(time,y_mean_control,type = "b",lwd = 2,pch=20,lty = 6,cex = 2,ylab = "y_mean",main = "Subgroup 3",ylim = c(19,24))
+lines(time,y_mean_3,type = "b",lwd = 2,pch=2,lty = 1,cex = 2)
+legend("bottomleft",legend = c("control","treatment"),lwd = c(2,2),pch = c(20,2),lty = c(6,1),cex = c(1.5,1.5))
+
+depth_lmer <- c()
+depth_mmrm_2 <- c()
+depth_mmrm_3 <- c()
+depth_mmrm_logn <- c()
+depth_mmrm_4 <- c()
+depth_mmrm_test_2 <- c()
+depth_mmrm_test_3 <- c()
+depth_mmrm_test_logn <- c()
+depth_mmrm_test_4 <- c()
+for (i in 1:100) {
+  depth_lmer[i] <- depth(tree_lmer[[i]]) != 0
+  depth_mmrm_2[i] <- depth(tree_mmrm_2[[i]]) != 0
+  depth_mmrm_3[i] <- depth(tree_mmrm_3[[i]]) != 0
+  depth_mmrm_logn[i] <- depth(tree_mmrm_logn[[i]]) != 0
+  depth_mmrm_4[i] <- depth(tree_mmrm_4[[i]]) != 0
+  depth_mmrm_test_2[i] <- depth(tree_mmrm_test_2[[i]]) != 0
+  depth_mmrm_test_3[i] <- depth(tree_mmrm_test_3[[i]]) != 0
+  depth_mmrm_test_logn[i] <- depth(tree_mmrm_test_logn[[i]]) != 0
+  depth_mmrm_test_4[i] <- depth(tree_mmrm_test_4[[i]]) != 0
+}
+mean(depth_lmer)
+mean(depth_mmrm_2)
+mean(depth_mmrm_3)
+mean(depth_mmrm_logn)
+mean(depth_mmrm_4)
+mean(depth_mmrm_test_2)
+mean(depth_mmrm_test_3)
+mean(depth_mmrm_test_logn)
+mean(depth_mmrm_test_4)
+
+boxplot(depth_lmer,depth_mmrm_2,depth_mmrm_3,depth_mmrm_4,depth_mmrm_logn,
+        depth_mmrm_test_2,depth_mmrm_test_3,depth_mmrm_test_4,depth_mmrm_test_logn,
+        main = "Null Setting",
+        ylab = "Tree Depth",
+        names = c("lmer","2","3","4","log(n)","test_2","test_3","test_4","test_logn"))
