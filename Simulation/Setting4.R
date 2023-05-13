@@ -115,7 +115,7 @@ for (ii in 1:100) {
 
   data.lmetree <-
     lmertree(
-      e ~ trt*factor(time)|(1 | factor(time))|X1+X2+X3+X4+X5,
+      e ~ trt*factor(time)|(1 | id)|X1+X2+X3+X4+X5,
       data = na.omit(longData),
       maxdepth = 3,
       alpha = .01,
